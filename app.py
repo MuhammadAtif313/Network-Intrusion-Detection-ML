@@ -10,6 +10,9 @@ from pathlib import Path
 # 1. PAGE CONFIGURATION
 # ==========================================
 
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_DIR = BASE_DIR / "models"
+
 st.set_page_config(
     page_title="Network Intrusion Detection",
     page_icon="🛡️",
@@ -38,20 +41,18 @@ st.divider()
 def load_model():
 
     model = joblib.load(
-        "models/best_model.joblib"
+        MODEL_DIR / "best_model.joblib"
     )
 
     feature_columns = joblib.load(
-        "models/feature_columns.joblib"
+        MODEL_DIR / "feature_columns.joblib"
     )
 
-    reference_data = pd.read_csv(
-        "dataset/processed_dataset.csv"
-    )
+    # Load saved training feature medians.
+    # No original dataset is required on deployment.
 
-    medians = (
-        reference_data[feature_columns]
-        .median()
+    medians = joblib.load(
+        MODEL_DIR / "feature_medians.joblib"
     )
 
     return model, feature_columns, medians
@@ -61,7 +62,9 @@ try:
 
     model, feature_columns, medians = load_model()
 
-    st.success("Machine Learning Model Loaded Successfully!")
+    st.success(
+        "Machine Learning Model Loaded Successfully!"
+    )
 
 except Exception as e:
 
@@ -162,7 +165,7 @@ elif page == "Traffic Prediction":
                 len(df)
             )
 
-            # Remove identifier columns
+            # Remove identifier and target columns
             identifier_columns = [
                 "Flow ID",
                 "Source IP",
@@ -223,13 +226,15 @@ elif page == "Traffic Prediction":
                         np.nan
                     )
 
-                    # Fill missing values using training reference medians
+                    # Fill missing values using saved medians
                     X = X.fillna(medians)
 
                     # Make predictions
                     predictions = model.predict(X)
 
-                    probabilities = model.predict_proba(X)[:, 1]
+                    probabilities = (
+                        model.predict_proba(X)[:, 1]
+                    )
 
                     # Prepare results
                     results = df.copy()
@@ -328,12 +333,12 @@ elif page == "Model Explainability":
         """
     )
 
-    importance_path = Path(
-        "models/shap_feature_importance.png"
+    importance_path = (
+        MODEL_DIR / "shap_feature_importance.png"
     )
 
-    summary_path = Path(
-        "models/shap_summary.png"
+    summary_path = (
+        MODEL_DIR / "shap_summary.png"
     )
 
     if importance_path.exists():
@@ -354,7 +359,10 @@ elif page == "Model Explainability":
             use_container_width=True
         )
 
-    if not importance_path.exists() and not summary_path.exists():
+    if (
+        not importance_path.exists()
+        and not summary_path.exists()
+    ):
 
         st.warning(
             "SHAP visualizations are not available."
